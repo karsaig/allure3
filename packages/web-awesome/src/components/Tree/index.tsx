@@ -7,6 +7,7 @@ import { MetadataButton } from "@/components/MetadataButton";
 import { reportStatsStore, statsByEnvStore } from "@/stores";
 import { collapsedEnvironments, currentEnvironment, environmentNameById, environmentsStore } from "@/stores/env";
 import { flatTree, getFlatTreeNode, setTreeFocusId, treeFocusId, treeScrollPaneToTopPending } from "@/stores/keyboard";
+import { isSplitMode } from "@/stores/layout";
 import { useI18n } from "@/stores/locale";
 import { navigateToTestResult } from "@/stores/router";
 import { currentTrId } from "@/stores/testResult";
@@ -21,6 +22,8 @@ import {
 } from "@/stores/tree";
 import { clearTreeFilters, treeStatus } from "@/stores/treeFilters/store";
 import { createTreeLocalizer } from "@/utils/tree";
+
+import { VirtualTreeList } from "./VirtualTreeList";
 
 import * as styles from "./styles.scss";
 
@@ -37,10 +40,16 @@ export const TreeList = () => {
   const { t: tooltip } = useI18n("transitions");
   const trId = currentTrId.value;
   const focusedId = treeFocusId.value;
+  const split = isSplitMode.value;
 
   const currentTreeStatus = treeStatus.value;
 
+  // In split mode, VirtualTreeList handles keyboard scroll; keep this only for non-split.
   useLayoutEffect(() => {
+    if (split) {
+      return;
+    }
+
     if (!focusedId) {
       return;
     }
@@ -58,28 +67,8 @@ export const TreeList = () => {
     }
 
     const flatNode = getFlatTreeNode(focusedId);
-    const kind = flatNode?.kind;
-
-    scrollFocusIntoView(node, { kind });
-  }, [focusedId]);
-
-  useLayoutEffect(() => {
-    if (!trId || focusedId) {
-      return;
-    }
-
-    // Use flatTree to find the scoped node id — avoids duplicate id issues in multi-env trees
-    const flatNode = flatTree.value.find((n) => n.testResultId === trId || n.id === trId);
-    const node = flatNode
-      ? (document.querySelector(`[data-tree-node-id="${flatNode.id}"]`) as HTMLElement | null)
-      : document.getElementById(trId);
-
-    if (!node) {
-      return;
-    }
-
-    scrollFocusIntoView(node, { kind: "leaf" });
-  }, [trId]);
+    scrollFocusIntoView(node, { kind: flatNode?.kind });
+  }, [focusedId, split]);
 
   const localizers = useMemo(
     () => ({
@@ -122,6 +111,10 @@ export const TreeList = () => {
               </div>
             </div>
           );
+        }
+
+        if (split) {
+          return <VirtualTreeList />;
         }
 
         const treeLocalizer = createTreeLocalizer(localizers);
