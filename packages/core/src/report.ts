@@ -726,7 +726,7 @@ export class AllureReport {
       globalAttachmentIds = [],
       globalErrors = [],
       indexAttachmentByTestResult = {},
-      indexTestResultByHistoryId = {},
+      indexTestResultByRetryHash = {},
       indexTestResultByTestCase = {},
       indexTestResultByResolutionIssue = {},
       indexAttachmentByFixture = {},
@@ -747,7 +747,7 @@ export class AllureReport {
       [AllureStoreDumpFiles.GlobalAttachments, globalAttachmentIds],
       [AllureStoreDumpFiles.GlobalErrors, globalErrors],
       [AllureStoreDumpFiles.IndexAttachmentsByTestResults, indexAttachmentByTestResult],
-      [AllureStoreDumpFiles.IndexTestResultsByHistoryId, indexTestResultByHistoryId],
+      [AllureStoreDumpFiles.IndexTestResultsByRetryHash, indexTestResultByRetryHash],
       [AllureStoreDumpFiles.IndexTestResultsByTestCase, indexTestResultByTestCase],
       [AllureStoreDumpFiles.IndexTestResultsByResolutionIssue, indexTestResultByResolutionIssue],
       [AllureStoreDumpFiles.IndexAttachmentsByFixture, indexAttachmentByFixture],
@@ -931,9 +931,9 @@ export class AllureReport {
               const globalAttachmentsEntry = await requiredEntryData(AllureStoreDumpFiles.GlobalAttachments);
               const globalErrorsEntry = await requiredEntryData(AllureStoreDumpFiles.GlobalErrors);
               const indexAttachmentsEntry = await requiredEntryData(AllureStoreDumpFiles.IndexAttachmentsByTestResults);
-              const indexTestResultsByHistoryId = await requiredEntryData(
-                AllureStoreDumpFiles.IndexTestResultsByHistoryId,
-              );
+              const indexTestResultsByRetryHash =
+                (await optionalEntryData(AllureStoreDumpFiles.IndexTestResultsByRetryHash)) ??
+                (await optionalEntryData(AllureStoreDumpFiles.IndexTestResultsByHistoryId));
               const indexTestResultsByTestCaseEntry = await requiredEntryData(
                 AllureStoreDumpFiles.IndexTestResultsByTestCase,
               );
@@ -965,6 +965,7 @@ export class AllureReport {
                   case AllureStoreDumpFiles.GlobalAttachments:
                   case AllureStoreDumpFiles.GlobalErrors:
                   case AllureStoreDumpFiles.IndexAttachmentsByTestResults:
+                  case AllureStoreDumpFiles.IndexTestResultsByRetryHash:
                   case AllureStoreDumpFiles.IndexTestResultsByHistoryId:
                   case AllureStoreDumpFiles.IndexTestResultsByTestCase:
                   case AllureStoreDumpFiles.IndexTestResultsByResolutionIssue:
@@ -995,7 +996,9 @@ export class AllureReport {
                 globalAttachmentIds: JSON.parse(globalAttachmentsEntry.toString("utf8")),
                 globalErrors: JSON.parse(globalErrorsEntry.toString("utf8")),
                 indexAttachmentByTestResult: JSON.parse(indexAttachmentsEntry.toString("utf8")),
-                indexTestResultByHistoryId: JSON.parse(indexTestResultsByHistoryId.toString("utf8")),
+                indexTestResultByRetryHash: indexTestResultsByRetryHash
+                  ? JSON.parse(indexTestResultsByRetryHash.toString("utf8"))
+                  : {},
                 indexTestResultByTestCase: JSON.parse(indexTestResultsByTestCaseEntry.toString("utf8")),
                 indexTestResultByResolutionIssue: indexTestResultsByResolutionIssueEntry
                   ? JSON.parse(indexTestResultsByResolutionIssueEntry.toString("utf8"))
