@@ -1,10 +1,8 @@
 import { scrollFocusIntoView, scrollTreePaneToTop } from "@allurereport/web-commons";
 import { TreeItem } from "@allurereport/web-components";
-import clsx from "clsx";
-import { useLayoutEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { getFlatTreeNode, setTreeFocusId, treeFocusId, treeScrollPaneToTopPending } from "@/stores/keyboard";
-import { isSplitMode } from "@/stores/layout";
 import { useI18n } from "@/stores/locale";
 import { navigateToTestResult } from "@/stores/router";
 import { currentTrId } from "@/stores/testResult";
@@ -35,6 +33,7 @@ const useLeafTooltips = (row: VirtualLeafRow) => {
     transition: row.transition ? t(`description.${row.transition}`) : undefined,
     flaky: row.flaky ? t("description.flaky") : undefined,
     retries: row.retriesCount ? t("description.retries", { count: row.retriesCount }) : undefined,
+    resolution: row.resolution ? t(`description.resolution.${row.resolution}`) : undefined,
   };
 };
 
@@ -53,6 +52,7 @@ const LeafRow = ({ row, trId, focusedId }: { row: VirtualLeafRow; trId?: string;
       transition={row.transition}
       transitionTooltip={row.transitionTooltip}
       tooltips={tooltips}
+      resolution={row.resolution}
       flaky={row.flaky}
       marked={row.nodeId === trId}
       focused={row.id === focusedId}
@@ -63,7 +63,7 @@ const LeafRow = ({ row, trId, focusedId }: { row: VirtualLeafRow; trId?: string;
 
 export const VirtualTreeList = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const split = isSplitMode.value;
+  const scrolledToTrId = useRef<string | undefined>(undefined);
   const rows = flatVirtualRows.value;
   const trId = currentTrId.value;
   const focusedId = treeFocusId.value;
@@ -73,10 +73,9 @@ export const VirtualTreeList = () => {
     containerRef,
     rows.length,
     OVERSCAN,
-    split,
   );
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!focusedId) return;
 
     const node = document.querySelector(`[data-tree-node-id="${focusedId}"]`);
@@ -94,12 +93,29 @@ export const VirtualTreeList = () => {
     }
   }, [focusedId]);
 
+  useEffect(() => {
+    if (!trId || focusedId) return;
+
+    if (scrolledToTrId.current === trId) return;
+
+    const index = rows.findIndex((row) => row.kind === "leaf" && (row.nodeId === trId || row.id === trId));
+
+    if (index < 0) return;
+
+    scrolledToTrId.current = trId;
+
+    const node = document.querySelector(`[data-tree-node-id="${rows[index]!.id}"]`);
+
+    if (node instanceof HTMLElement) {
+      scrollFocusIntoView(node, { kind: "leaf" });
+      return;
+    }
+
+    scrollToIndex(index, "auto");
+  }, [trId, rows]);
+
   return (
-    <div
-      ref={containerRef}
-      data-tree-scroll-container={split || undefined}
-      className={clsx(split && styles["virtual-tree-container"])}
-    >
+    <div ref={containerRef}>
       <div style={{ height: totalSize, position: "relative" }}>
         <div
           style={{
