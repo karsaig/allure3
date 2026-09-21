@@ -322,7 +322,7 @@ describe("useVirtualList — fast scrolling", () => {
 
     const atRest = result.current.virtualItems.length;
 
-    scrollBy(scrollEl, 100 * ESTIMATE_ROW_HEIGHT);
+    scrollBy(scrollEl, 12 * ESTIMATE_ROW_HEIGHT);
 
     const duringFling = result.current.virtualItems;
     const lastIndex = duringFling[duringFling.length - 1]!.index;
@@ -334,6 +334,24 @@ describe("useVirtualList — fast scrolling", () => {
     scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
 
     expect(result.current.virtualItems.length).toBe(atRest);
+    document.body.removeChild(scrollEl);
+  });
+
+  it("keeps the window small when the scroll jumps far past the viewport", () => {
+    const scrollEl = makeScrollEl(0, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
+
+    scrollBy(scrollEl, 500 * ESTIMATE_ROW_HEIGHT);
+    scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
+
+    const atRest = result.current.virtualItems.length;
+
+    scrollBy(scrollEl, 1000 * ESTIMATE_ROW_HEIGHT);
+
+    expect(result.current.virtualItems.length).toBeLessThanOrEqual(atRest);
     document.body.removeChild(scrollEl);
   });
 
@@ -366,9 +384,9 @@ describe("useVirtualList — fast scrolling", () => {
 
     const atRestFirstIndex = result.current.virtualItems[0]!.index;
 
-    scrollBy(scrollEl, -100 * ESTIMATE_ROW_HEIGHT);
+    scrollBy(scrollEl, -12 * ESTIMATE_ROW_HEIGHT);
 
-    expect(result.current.virtualItems[0]!.index).toBeLessThan(atRestFirstIndex - 100);
+    expect(result.current.virtualItems[0]!.index).toBeLessThan(atRestFirstIndex - 12);
     document.body.removeChild(scrollEl);
   });
 });

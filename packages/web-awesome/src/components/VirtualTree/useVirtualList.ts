@@ -4,7 +4,11 @@ export const ESTIMATE_ROW_HEIGHT = 32;
 
 export const MIN_MEASURED_ROWS_FOR_ESTIMATE = 10;
 
-export const MAX_FLING_OVERSCAN = 150;
+export const MAX_FLING_OVERSCAN = 60;
+
+export const TELEPORT_VIEWPORTS = 6;
+
+export const TELEPORT_OVERSCAN = 5;
 
 export type VirtualItem = { index: number; start: number };
 
@@ -122,10 +126,13 @@ export function useVirtualList(
 
   const estimate = estimatedRowHeight();
 
+  const viewportRows = Math.max(1, Math.ceil(containerHeight / estimate));
   const rowsJumpedOver = Math.ceil(Math.abs(scrollDelta) / estimate);
-  const flingOverscan = Math.min(MAX_FLING_OVERSCAN, rowsJumpedOver);
-  const overscanBefore = scrollDelta < 0 ? overscan + flingOverscan : overscan;
-  const overscanAfter = scrollDelta > 0 ? overscan + flingOverscan : overscan;
+  const jumpedPastBuffer = rowsJumpedOver > viewportRows * TELEPORT_VIEWPORTS;
+  const flingOverscan = jumpedPastBuffer ? 0 : Math.min(MAX_FLING_OVERSCAN, rowsJumpedOver);
+  const baseOverscan = jumpedPastBuffer ? Math.min(TELEPORT_OVERSCAN, overscan) : overscan;
+  const overscanBefore = scrollDelta < 0 ? baseOverscan + flingOverscan : baseOverscan;
+  const overscanAfter = scrollDelta > 0 ? baseOverscan + flingOverscan : baseOverscan;
 
   let firstVisibleIdx = count - 1;
   {
