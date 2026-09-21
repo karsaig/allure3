@@ -311,13 +311,12 @@ describe("useVirtualList — fast scrolling", () => {
   };
 
   it("widens the window ahead of a fast scroll and keeps it narrow at rest", () => {
-    const scrollEl = makeScrollEl(0, 200);
+    const scrollEl = makeScrollEl(500 * ESTIMATE_ROW_HEIGHT, 200);
     document.body.appendChild(scrollEl);
     const containerRef = { current: makeContainerEl(scrollEl) };
 
     const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
 
-    scrollBy(scrollEl, 500 * ESTIMATE_ROW_HEIGHT);
     scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
 
     const atRest = result.current.virtualItems.length;
@@ -338,13 +337,12 @@ describe("useVirtualList — fast scrolling", () => {
   });
 
   it("keeps the window small when the scroll jumps far past the viewport", () => {
-    const scrollEl = makeScrollEl(0, 200);
+    const scrollEl = makeScrollEl(500 * ESTIMATE_ROW_HEIGHT, 200);
     document.body.appendChild(scrollEl);
     const containerRef = { current: makeContainerEl(scrollEl) };
 
     const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
 
-    scrollBy(scrollEl, 500 * ESTIMATE_ROW_HEIGHT);
     scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
 
     const atRest = result.current.virtualItems.length;

@@ -10,6 +10,8 @@ export const TELEPORT_VIEWPORTS = 6;
 
 export const TELEPORT_OVERSCAN = 2;
 
+export const TELEPORT_SETTLE_MS = 150;
+
 export type VirtualItem = { index: number; start: number };
 
 export type VirtualListResult = {
@@ -40,7 +42,9 @@ export function useVirtualList(
 ): VirtualListResult {
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollDelta, setScrollDelta] = useState(0);
-  const previousScrollTop = useRef(0);
+  const [isTeleporting, setIsTeleporting] = useState(false);
+  const teleportTimer = useRef<number | null>(null);
+  const previousScrollTop = useRef<number | null>(null);
   const [containerHeight, setContainerHeight] = useState(600);
   const measuredHeights = useRef<Map<number, number>>(new Map());
   const scrollCtxRef = useRef<ScrollContext | null>(null);
@@ -68,8 +72,19 @@ export function useVirtualList(
     const update = () => {
       const offset = getContainerOffset();
       const nextScrollTop = Math.max(0, scrollEl.scrollTop - offset);
+      const delta = previousScrollTop.current === null ? 0 : nextScrollTop - previousScrollTop.current;
 
-      setScrollDelta(nextScrollTop - previousScrollTop.current);
+      if (Math.abs(delta) > scrollEl.clientHeight * TELEPORT_VIEWPORTS) {
+        setIsTeleporting(true);
+
+        if (teleportTimer.current) {
+          clearTimeout(teleportTimer.current);
+        }
+
+        teleportTimer.current = window.setTimeout(() => setIsTeleporting(false), TELEPORT_SETTLE_MS);
+      }
+
+      setScrollDelta(delta);
       previousScrollTop.current = nextScrollTop;
       setScrollTop(nextScrollTop);
       setContainerHeight(scrollEl.clientHeight);
@@ -83,6 +98,9 @@ export function useVirtualList(
     ro.observe(containerEl);
 
     return () => {
+      if (teleportTimer.current) {
+        clearTimeout(teleportTimer.current);
+      }
       cancelAnimationFrame(initialUpdate);
       scrollEl.removeEventListener("scroll", update);
       ro.disconnect();
@@ -128,7 +146,7 @@ export function useVirtualList(
 
   const viewportRows = Math.max(1, Math.ceil(containerHeight / estimate));
   const rowsJumpedOver = Math.ceil(Math.abs(scrollDelta) / estimate);
-  const jumpedPastBuffer = rowsJumpedOver > viewportRows * TELEPORT_VIEWPORTS;
+  const jumpedPastBuffer = isTeleporting || rowsJumpedOver > viewportRows * TELEPORT_VIEWPORTS;
   const flingOverscan = jumpedPastBuffer ? 0 : Math.min(MAX_FLING_OVERSCAN, rowsJumpedOver);
   const baseOverscan = jumpedPastBuffer ? Math.min(TELEPORT_OVERSCAN, overscan) : overscan;
   const overscanBefore = scrollDelta < 0 ? baseOverscan + flingOverscan : baseOverscan;
@@ -173,9 +191,9 @@ export function useVirtualList(
   const measureElement = (el: HTMLElement | null) => {
     if (!el) return;
     const idx = parseInt(el.getAttribute("data-index") ?? "", 10);
-    if (isNaN(idx)) return;
+    if (isNaN(idx) || measuredHeights.current.has(idx)) return;
     const h = el.getBoundingClientRect().height;
-    if (h > 0 && measuredHeights.current.get(idx) !== h) {
+    if (h > 0) {
       measuredHeights.current.set(idx, h);
     }
   };
