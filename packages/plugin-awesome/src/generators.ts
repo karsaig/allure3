@@ -518,7 +518,7 @@ const getResolutionGroupName = (test: ReportTestResult): string => {
 
 const resolutionTestResultFactory = (test: ReportTestResult, index: number): ReportResolutionTestResult => ({
   nodeId: test.id,
-  id: test.historyId ?? test.id,
+  id: test.retryHash ?? test.id,
   name: test.name,
   status: test.status,
   duration: test.duration,
