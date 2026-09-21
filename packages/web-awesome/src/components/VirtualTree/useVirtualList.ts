@@ -127,36 +127,34 @@ export function useVirtualList(
   const overscanBefore = scrollDelta < 0 ? overscan + flingOverscan : overscan;
   const overscanAfter = scrollDelta > 0 ? overscan + flingOverscan : overscan;
 
-  let startIdx = 0;
-  let startOffset = 0;
+  let firstVisibleIdx = count - 1;
   {
     let accumulated = 0;
     for (let i = 0; i < count; i++) {
       const h = rowHeight(i, estimate);
       if (accumulated + h > scrollTop) {
-        startIdx = Math.max(0, i - overscanBefore);
+        firstVisibleIdx = i;
         break;
       }
       accumulated += h;
-      if (i === count - 1) startIdx = Math.max(0, count - overscanBefore);
     }
-    startOffset = getItemOffset(startIdx, estimate);
   }
 
-  let endIdx = count - 1;
+  let lastVisibleIdx = count - 1;
   {
     let accumulated = 0;
-    let pastStart = false;
-    for (let i = 0; i < count; i++) {
-      const h = rowHeight(i, estimate);
-      if (i >= startIdx) pastStart = true;
-      if (pastStart) accumulated += h;
-      if (pastStart && accumulated > containerHeight) {
-        endIdx = Math.min(count - 1, i + overscanAfter);
+    for (let i = firstVisibleIdx; i < count; i++) {
+      accumulated += rowHeight(i, estimate);
+      if (accumulated > containerHeight) {
+        lastVisibleIdx = i;
         break;
       }
     }
   }
+
+  const startIdx = Math.max(0, firstVisibleIdx - overscanBefore);
+  const endIdx = Math.min(count - 1, lastVisibleIdx + overscanAfter);
+  const startOffset = getItemOffset(startIdx, estimate);
 
   const virtualItems: VirtualItem[] = [];
   let runningOffset = startOffset;

@@ -337,6 +337,24 @@ describe("useVirtualList — fast scrolling", () => {
     document.body.removeChild(scrollEl);
   });
 
+  it("still covers the viewport when the buffer grows behind the scroll position", () => {
+    const scrollEl = makeScrollEl(300 * ESTIMATE_ROW_HEIGHT, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
+
+    scrollBy(scrollEl, -100 * ESTIMATE_ROW_HEIGHT);
+
+    const firstVisibleIndex = 200;
+    const visibleRows = Math.ceil(200 / ESTIMATE_ROW_HEIGHT);
+    const items = result.current.virtualItems;
+
+    expect(items[0]!.index).toBeLessThanOrEqual(firstVisibleIndex);
+    expect(items[items.length - 1]!.index).toBeGreaterThanOrEqual(firstVisibleIndex + visibleRows);
+    document.body.removeChild(scrollEl);
+  });
+
   it("widens the window behind a fast scroll upwards", () => {
     const scrollEl = makeScrollEl(200 * ESTIMATE_ROW_HEIGHT, 200);
     document.body.appendChild(scrollEl);
