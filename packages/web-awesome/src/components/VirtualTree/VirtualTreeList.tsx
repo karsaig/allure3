@@ -88,14 +88,28 @@ export const VirtualTreeList = () => {
         return;
       }
       scrollFocusIntoView(node, { kind: getFlatTreeNode(focusedId)?.kind });
-    } else {
-      const idx = rows.findIndex((row) => row.id === focusedId);
-      if (idx >= 0) scrollToIndex(idx, "auto");
+      return;
     }
-  }, [focusedId]);
+
+    const idx = rows.findIndex((row) => row.id === focusedId);
+
+    if (idx < 0) return;
+
+    scrollToIndex(idx, "auto");
+
+    const settleFocus = requestAnimationFrame(() => {
+      const rendered = document.querySelector(`[data-tree-node-id="${focusedId}"]`);
+
+      if (rendered instanceof HTMLElement) {
+        scrollFocusIntoView(rendered, { kind: getFlatTreeNode(focusedId)?.kind });
+      }
+    });
+
+    return () => cancelAnimationFrame(settleFocus);
+  }, [focusedId, rows]);
 
   useEffect(() => {
-    if (!trId || focusedId) return;
+    if (!trId) return;
 
     if (scrolledToTrId.current === trId) return;
 
@@ -103,9 +117,16 @@ export const VirtualTreeList = () => {
 
     if (index < 0) return;
 
+    const openedRow = rows[index]!;
+
     scrolledToTrId.current = trId;
 
-    const node = document.querySelector(`[data-tree-node-id="${rows[index]!.id}"]`);
+    if (focusedId !== openedRow.id) {
+      setTreeFocusId(openedRow.id);
+      return;
+    }
+
+    const node = document.querySelector(`[data-tree-node-id="${openedRow.id}"]`);
 
     if (node instanceof HTMLElement) {
       scrollFocusIntoView(node, { kind: "leaf" });
@@ -113,7 +134,7 @@ export const VirtualTreeList = () => {
     }
 
     scrollToIndex(index, "auto");
-  }, [trId, rows]);
+  }, [trId, rows, focusedId]);
 
   return (
     <div ref={containerRef}>

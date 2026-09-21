@@ -9,6 +9,7 @@ import { filteredTree, isTreeOpened, noTests, noTestsFound } from "@/stores/tree
 export type VirtualLeafRow = {
   kind: "leaf";
   id: string;
+  parentId?: string;
   depth: number;
   nodeId: string;
   name: string;
@@ -26,6 +27,7 @@ export type VirtualLeafRow = {
 export type VirtualGroupRow = {
   kind: "group";
   id: string;
+  parentId?: string;
   depth: number;
   isExpanded: boolean;
   openedByDefault: boolean;
@@ -39,6 +41,7 @@ export type VirtualGroupRow = {
 export type VirtualEnvRow = {
   kind: "env";
   id: string;
+  parentId?: string;
   depth: number;
   isExpanded: boolean;
   nodeId: string;
@@ -57,10 +60,10 @@ export function flattenTreeWithData(
   tree: ReportRecursiveTree,
   depth: number,
   isGroupOpened: (id: string, openedByDefault: boolean) => boolean,
-  options: { isRoot?: boolean; idPrefix?: string } = {},
+  options: { isRoot?: boolean; idPrefix?: string; parentId?: string } = {},
 ): VirtualRow[] {
   const rows: VirtualRow[] = [];
-  const { idPrefix } = options;
+  const { idPrefix, parentId } = options;
   const toScopedId = (nodeId: string) => (idPrefix ? `${idPrefix}${nodeId}` : nodeId);
 
   const hasChildren = tree.trees.length > 0 || tree.leaves.length > 0;
@@ -73,6 +76,7 @@ export function flattenTreeWithData(
     rows.push({
       kind: "group",
       id: groupFocusId,
+      parentId,
       depth,
       isExpanded,
       openedByDefault: defaultOpened,
@@ -87,17 +91,19 @@ export function flattenTreeWithData(
   if (!hasChildren) return rows;
 
   const childDepth = showHeader ? depth + 1 : depth;
+  const childParentId = showHeader ? groupFocusId : parentId;
   const canShowChildren = showHeader ? isExpanded : options.isRoot ? isExpanded : true;
 
   if (canShowChildren) {
     for (const subTree of tree.trees) {
-      rows.push(...flattenTreeWithData(subTree, childDepth, isGroupOpened, { idPrefix }));
+      rows.push(...flattenTreeWithData(subTree, childDepth, isGroupOpened, { idPrefix, parentId: childParentId }));
     }
 
     for (const leaf of tree.leaves as ReportTreeLeaf[]) {
       rows.push({
         kind: "leaf",
         id: toScopedId(leaf.nodeId),
+        parentId: childParentId,
         depth: childDepth,
         nodeId: leaf.nodeId,
         name: leaf.name,
@@ -158,7 +164,9 @@ export const flatVirtualRows = computed((): VirtualRow[] => {
     });
 
     if (isOpened) {
-      rows.push(...flattenTreeWithData(tree, 1, isTreeOpened, { isRoot: true, idPrefix: `${envId}:` }));
+      rows.push(
+        ...flattenTreeWithData(tree, 1, isTreeOpened, { isRoot: true, idPrefix: `${envId}:`, parentId: envFocusId }),
+      );
     }
   }
 

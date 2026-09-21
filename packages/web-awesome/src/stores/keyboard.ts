@@ -1,5 +1,4 @@
 import {
-  flattenVisibleTree,
   moveFocus,
   router,
   type FlatTreeNode,
@@ -25,6 +24,7 @@ import {
   noTestsFound,
   setTreeOpened,
 } from "@/stores/tree";
+import { flatVirtualRows } from "@/stores/virtualTree";
 
 export type ActivePane = "tree" | "testResult";
 
@@ -174,80 +174,19 @@ export const isHotkeyScopeActive = (scope: "global" | "tree" | "testResult"): bo
   return true;
 };
 
-const buildEnvSections = () => {
-  const envs = environmentsStore.value.data;
-
-  return Object.entries(filteredTree.value)
-    .map(([envId, tree]) => {
-      const stats = statsByEnvStore.value.data[envId];
-
-      if ((stats?.total ?? 0) === 0) {
-        return null;
-      }
-
-      return {
-        id: envId,
-        opened: !collapsedEnvironments.value.includes(envId),
-        tree: tree as RecursiveTree,
-        statistic: stats,
-      };
-    })
-    .filter((section): section is NonNullable<typeof section> => section !== null);
-};
-
-const flattenTreeForKeyboard = (options: {
-  tree: Parameters<typeof flattenVisibleTree>[0]["tree"];
-  isRoot?: boolean;
-  rootStatistic?: Parameters<typeof flattenVisibleTree>[0]["rootStatistic"];
-  envSections?: Parameters<typeof flattenVisibleTree>[0]["envSections"];
-}) => {
-  collapsedTrees.value;
-  expandedTrees.value;
-
-  return flattenVisibleTree({
-    collapsedTrees: collapsedTrees.value,
-    isGroupOpened: (scopedNodeId, openedByDefault) => isTreeOpened(scopedNodeId, openedByDefault),
-    ...options,
-  });
-};
-
-export const flatTree = computed((): FlatTreeNode[] => {
-  if (noTests.value || noTestsFound.value) {
-    return [];
-  }
-
-  const envs = environmentsStore.value.data;
-  const trees = filteredTree.value;
-
-  if (envs.length === 1) {
-    const soleId = envs[0]!.id;
-    const tree = trees[soleId];
-
-    if (!tree) {
-      return [];
-    }
-
-    return flattenTreeForKeyboard({
-      tree,
-      isRoot: true,
-      rootStatistic: statsByEnvStore.value.data[soleId],
-    });
-  }
-
-  const currentTree = currentEnvironment.value ? trees[currentEnvironment.value] : undefined;
-
-  if (currentTree) {
-    return flattenTreeForKeyboard({
-      tree: currentTree,
-      isRoot: true,
-      rootStatistic: statsByEnvStore.value.data[currentEnvironment.value],
-    });
-  }
-
-  return flattenTreeForKeyboard({
-    envSections: buildEnvSections(),
-  });
-});
+export const flatTree = computed((): FlatTreeNode[] =>
+  flatVirtualRows.value.map((row) => ({
+    kind: row.kind,
+    id: row.id,
+    nodeId: row.nodeId,
+    testResultId: row.kind === "leaf" ? row.nodeId : undefined,
+    parentId: row.parentId,
+    depth: row.depth,
+    hasChildren: row.kind !== "leaf",
+    isExpanded: row.kind === "leaf" ? undefined : row.isExpanded,
+    openedByDefault: row.kind === "group" ? row.openedByDefault : true,
+  })),
+);
 
 export const getFlatTreeNode = (id: string | undefined) => flatTree.value.find((node) => node.id === id);
 
@@ -349,8 +288,8 @@ export const revealTreeNode = (nodeId: string) => {
   }
 };
 
-const expandAndFocusCurrentTest = () => {
-  const testResultId = currentTrId.peek();
+const expandAndFocusCurrentTest = (openedTestResultId?: string) => {
+  const testResultId = openedTestResultId ?? currentTrId.peek?.();
 
   if (!testResultId) {
     return;
@@ -366,6 +305,25 @@ const expandAndFocusCurrentTest = () => {
 
   revealTreeNode(testResultId);
 };
+
+let revealedTestResultId: string | undefined;
+
+effect(() => {
+  const testResultId = currentTrId.value;
+  const flat = flatTree.value;
+
+  if (!testResultId) {
+    revealedTestResultId = undefined;
+    return;
+  }
+
+  if (flat.length === 0 || revealedTestResultId === testResultId) {
+    return;
+  }
+
+  revealedTestResultId = testResultId;
+  expandAndFocusCurrentTest(testResultId);
+});
 
 let prevIsSplitMode = isSplitMode.peek();
 
