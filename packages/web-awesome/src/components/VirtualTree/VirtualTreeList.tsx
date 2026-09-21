@@ -1,5 +1,6 @@
 import { scrollFocusIntoView, scrollTreePaneToTop } from "@allurereport/web-commons";
 import { TreeItem } from "@allurereport/web-components";
+import { memo } from "preact/compat";
 import { useEffect, useRef } from "preact/hooks";
 
 import { getFlatTreeNode, setTreeFocusId, treeFocusId, treeScrollPaneToTopPending } from "@/stores/keyboard";
@@ -37,7 +38,7 @@ const useLeafTooltips = (row: VirtualLeafRow) => {
   };
 };
 
-const LeafRow = ({ row, trId, focusedId }: { row: VirtualLeafRow; trId?: string; focusedId?: string }) => {
+const LeafRow = memo(({ row, trId, focusedId }: { row: VirtualLeafRow; trId?: string; focusedId?: string }) => {
   const tooltips = useLeafTooltips(row);
   return (
     <TreeItem
@@ -59,7 +60,7 @@ const LeafRow = ({ row, trId, focusedId }: { row: VirtualLeafRow; trId?: string;
       navigateTo={treeNavigateTo}
     />
   );
-};
+});
 
 export const VirtualTreeList = () => {
   const containerRef = useRef<HTMLDivElement>(null);

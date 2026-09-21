@@ -9,6 +9,7 @@ import {
   type SubtreeToggleState,
 } from "@allurereport/web-commons";
 import { IconButton, TreeHeader, allureIcons, treeSubtreeToggleClass } from "@allurereport/web-components";
+import { memo } from "preact/compat";
 import { useState } from "preact/hooks";
 
 import { reportStatsStore } from "@/stores";
@@ -29,7 +30,7 @@ type Props = {
   statusFilter: ReturnType<typeof treeStatus.peek>;
 };
 
-export const GroupHeader = ({ row, focused, statusFilter }: Props) => {
+export const GroupHeader = memo(({ row, focused, statusFilter }: Props) => {
   const { id, name, statistic, isExpanded, openedByDefault, tree, idPrefix } = row;
   const toScopedId = (nid: string) => (idPrefix ? `${idPrefix}${nid}` : nid);
   const hasChildren = hasExpandableTreeChildren(tree);
@@ -105,4 +106,4 @@ export const GroupHeader = ({ row, focused, statusFilter }: Props) => {
       nodeId={id}
     />
   );
-};
+});

@@ -8,7 +8,7 @@ export const MAX_FLING_OVERSCAN = 60;
 
 export const TELEPORT_VIEWPORTS = 6;
 
-export const TELEPORT_OVERSCAN = 5;
+export const TELEPORT_OVERSCAN = 2;
 
 export type VirtualItem = { index: number; start: number };
 
