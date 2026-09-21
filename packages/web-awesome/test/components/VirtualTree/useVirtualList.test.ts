@@ -22,7 +22,11 @@ class ResizeObserverMock {
 
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
-import { ESTIMATE_ROW_HEIGHT, useVirtualList } from "../../../src/components/VirtualTree/useVirtualList.js";
+import {
+  ESTIMATE_ROW_HEIGHT,
+  MIN_MEASURED_ROWS_FOR_ESTIMATE,
+  useVirtualList,
+} from "../../../src/components/VirtualTree/useVirtualList.js";
 
 beforeEach(async () => {
   await epic("coverage");
@@ -294,6 +298,104 @@ describe("useVirtualList — scrollToIndex with estimated heights", () => {
     });
 
     expect(scrollEl.scrollTop).toBe(49 * ESTIMATE_ROW_HEIGHT + 16);
+    document.body.removeChild(scrollEl);
+  });
+});
+
+describe("useVirtualList — fast scrolling", () => {
+  const scrollBy = (scrollEl: HTMLElement, delta: number) => {
+    act(() => {
+      (scrollEl as any).scrollTop += delta;
+      scrollEl.dispatchEvent(new Event("scroll"));
+    });
+  };
+
+  it("widens the window ahead of a fast scroll and keeps it narrow at rest", () => {
+    const scrollEl = makeScrollEl(0, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
+
+    scrollBy(scrollEl, 500 * ESTIMATE_ROW_HEIGHT);
+    scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
+
+    const atRest = result.current.virtualItems.length;
+
+    scrollBy(scrollEl, 100 * ESTIMATE_ROW_HEIGHT);
+
+    const duringFling = result.current.virtualItems;
+    const lastIndex = duringFling[duringFling.length - 1]!.index;
+    const firstIndex = duringFling[0]!.index;
+
+    expect(duringFling.length).toBeGreaterThan(atRest);
+    expect(lastIndex - firstIndex).toBeGreaterThan(atRest);
+
+    scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
+
+    expect(result.current.virtualItems.length).toBe(atRest);
+    document.body.removeChild(scrollEl);
+  });
+
+  it("widens the window behind a fast scroll upwards", () => {
+    const scrollEl = makeScrollEl(200 * ESTIMATE_ROW_HEIGHT, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 5000, OVERSCAN));
+
+    scrollBy(scrollEl, ESTIMATE_ROW_HEIGHT);
+
+    const atRestFirstIndex = result.current.virtualItems[0]!.index;
+
+    scrollBy(scrollEl, -100 * ESTIMATE_ROW_HEIGHT);
+
+    expect(result.current.virtualItems[0]!.index).toBeLessThan(atRestFirstIndex - 100);
+    document.body.removeChild(scrollEl);
+  });
+});
+
+describe("useVirtualList — estimating unmeasured rows", () => {
+  const measuredRow = (index: number, height: number) => {
+    const row = document.createElement("div");
+    row.setAttribute("data-index", String(index));
+    Object.defineProperty(row, "getBoundingClientRect", { value: () => ({ height }) });
+    return row;
+  };
+
+  it("keeps the fixed estimate until enough rows have been measured", () => {
+    const scrollEl = makeScrollEl(0, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 1000, OVERSCAN));
+
+    act(() => {
+      result.current.measureElement(measuredRow(0, 64));
+      (scrollEl as any).scrollTop = 1;
+      scrollEl.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(result.current.totalSize).toBe(64 + 999 * ESTIMATE_ROW_HEIGHT);
+    document.body.removeChild(scrollEl);
+  });
+
+  it("estimates unmeasured rows from the measured ones once there are enough", () => {
+    const scrollEl = makeScrollEl(0, 200);
+    document.body.appendChild(scrollEl);
+    const containerRef = { current: makeContainerEl(scrollEl) };
+
+    const { result } = renderHook(() => useVirtualList(containerRef, 1000, OVERSCAN));
+
+    act(() => {
+      for (let index = 0; index < MIN_MEASURED_ROWS_FOR_ESTIMATE; index++) {
+        result.current.measureElement(measuredRow(index, 40));
+      }
+      (scrollEl as any).scrollTop = 1;
+      scrollEl.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(result.current.totalSize).toBe(1000 * 40);
     document.body.removeChild(scrollEl);
   });
 });

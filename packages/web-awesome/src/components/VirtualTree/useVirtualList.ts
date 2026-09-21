@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 export const ESTIMATE_ROW_HEIGHT = 32;
 
+export const MIN_MEASURED_ROWS_FOR_ESTIMATE = 10;
+
+export const MAX_FLING_OVERSCAN = 150;
+
 export type VirtualItem = { index: number; start: number };
 
 export type VirtualListResult = {
@@ -31,6 +35,8 @@ export function useVirtualList(
   overscan: number,
 ): VirtualListResult {
   const [scrollTop, setScrollTop] = useState(0);
+  const [scrollDelta, setScrollDelta] = useState(0);
+  const previousScrollTop = useRef(0);
   const [containerHeight, setContainerHeight] = useState(600);
   const measuredHeights = useRef<Map<number, number>>(new Map());
   const scrollCtxRef = useRef<ScrollContext | null>(null);
@@ -57,7 +63,11 @@ export function useVirtualList(
 
     const update = () => {
       const offset = getContainerOffset();
-      setScrollTop(Math.max(0, scrollEl.scrollTop - offset));
+      const nextScrollTop = Math.max(0, scrollEl.scrollTop - offset);
+
+      setScrollDelta(nextScrollTop - previousScrollTop.current);
+      previousScrollTop.current = nextScrollTop;
+      setScrollTop(nextScrollTop);
       setContainerHeight(scrollEl.clientHeight);
     };
 
@@ -76,34 +86,61 @@ export function useVirtualList(
     };
   }, []);
 
-  const getItemOffset = (idx: number): number => {
+  const estimatedRowHeight = (): number => {
+    const measured = measuredHeights.current;
+
+    if (measured.size < MIN_MEASURED_ROWS_FOR_ESTIMATE) {
+      return ESTIMATE_ROW_HEIGHT;
+    }
+
+    let sum = 0;
+    for (const height of measured.values()) {
+      sum += height;
+    }
+
+    return sum / measured.size;
+  };
+
+  const rowHeight = (idx: number, estimate: number): number => measuredHeights.current.get(idx) ?? estimate;
+
+  const getItemOffset = (idx: number, estimate = estimatedRowHeight()): number => {
     let offset = 0;
     for (let i = 0; i < idx; i++) {
-      offset += measuredHeights.current.get(i) ?? ESTIMATE_ROW_HEIGHT;
+      offset += rowHeight(i, estimate);
     }
     return offset;
   };
 
   const getTotalSize = (): number => {
+    const estimate = estimatedRowHeight();
     let total = 0;
     for (let i = 0; i < count; i++) {
-      total += measuredHeights.current.get(i) ?? ESTIMATE_ROW_HEIGHT;
+      total += rowHeight(i, estimate);
     }
     return total;
   };
 
+  const estimate = estimatedRowHeight();
+
+  const rowsJumpedOver = Math.ceil(Math.abs(scrollDelta) / estimate);
+  const flingOverscan = Math.min(MAX_FLING_OVERSCAN, rowsJumpedOver);
+  const overscanBefore = scrollDelta < 0 ? overscan + flingOverscan : overscan;
+  const overscanAfter = scrollDelta > 0 ? overscan + flingOverscan : overscan;
+
   let startIdx = 0;
+  let startOffset = 0;
   {
     let accumulated = 0;
     for (let i = 0; i < count; i++) {
-      const h = measuredHeights.current.get(i) ?? ESTIMATE_ROW_HEIGHT;
+      const h = rowHeight(i, estimate);
       if (accumulated + h > scrollTop) {
-        startIdx = Math.max(0, i - overscan);
+        startIdx = Math.max(0, i - overscanBefore);
         break;
       }
       accumulated += h;
-      if (i === count - 1) startIdx = Math.max(0, count - overscan);
+      if (i === count - 1) startIdx = Math.max(0, count - overscanBefore);
     }
+    startOffset = getItemOffset(startIdx, estimate);
   }
 
   let endIdx = count - 1;
@@ -111,19 +148,21 @@ export function useVirtualList(
     let accumulated = 0;
     let pastStart = false;
     for (let i = 0; i < count; i++) {
-      const h = measuredHeights.current.get(i) ?? ESTIMATE_ROW_HEIGHT;
+      const h = rowHeight(i, estimate);
       if (i >= startIdx) pastStart = true;
       if (pastStart) accumulated += h;
       if (pastStart && accumulated > containerHeight) {
-        endIdx = Math.min(count - 1, i + overscan);
+        endIdx = Math.min(count - 1, i + overscanAfter);
         break;
       }
     }
   }
 
   const virtualItems: VirtualItem[] = [];
+  let runningOffset = startOffset;
   for (let i = startIdx; i <= endIdx; i++) {
-    virtualItems.push({ index: i, start: getItemOffset(i) });
+    virtualItems.push({ index: i, start: runningOffset });
+    runningOffset += rowHeight(i, estimate);
   }
 
   const measureElement = (el: HTMLElement | null) => {

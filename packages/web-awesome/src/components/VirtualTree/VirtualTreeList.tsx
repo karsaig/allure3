@@ -17,7 +17,7 @@ import { useVirtualList } from "./useVirtualList";
 import * as styles from "./styles.scss";
 
 const INDENT_WIDTH = 24;
-const OVERSCAN = 10;
+const OVERSCAN = 60;
 
 const treeNavigateTo = (testResultId: string) => {
   const flatNode = flatVirtualRows.value.find(
