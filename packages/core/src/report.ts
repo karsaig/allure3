@@ -233,7 +233,11 @@ export class AllureReport {
     const reportTitleSuffix = this.#ci?.pullRequestName ?? this.#ci?.jobRunName;
 
     this.reportName = [name, reportTitleSuffix].filter(Boolean).join(" – ");
-    this.#realtimeChannel = new RealtimeChannel();
+    this.#realtimeChannel = new RealtimeChannel(() => {
+      if (this.#executionStage === "running") {
+        this.#store.updateHistoryFlags();
+      }
+    });
     this.#realtimeUpdateScheduler = new RealtimeUpdateScheduler(this.#runRealtimeUpdate);
     this.#realTime = realTime;
     this.#dump = dump;
@@ -530,6 +534,7 @@ export class AllureReport {
       const resultsDirPath = resolve(resultsDir);
 
       if (await readXcResultBundle(this.#store, resultsDirPath)) {
+        this.#store.updateHistoryFlags();
         return;
       }
 
@@ -555,6 +560,8 @@ export class AllureReport {
       } catch (e) {
         console.error("can't read directory", e);
       }
+
+      this.#store.updateHistoryFlags();
     });
 
   readFile = async (resultsFile: string) =>
@@ -563,6 +570,7 @@ export class AllureReport {
         throw new Error(INIT_REQUIRED_ERROR_MESSAGE);
       }
       await this.readResult(new PathResultFile(resultsFile));
+      this.#store.updateHistoryFlags();
     });
 
   readResult = async (data: ResultFile) => {
@@ -587,6 +595,11 @@ export class AllureReport {
 
   validate = async (params: { trs: TestResult[]; state?: QualityGateState; environment?: string }) => {
     const { trs, state, environment } = params;
+
+    if (this.#executionStage !== "done") {
+      this.#store.updateHistoryFlags(trs.filter(Boolean));
+    }
+
     const qualityGateEnvironment =
       environment === undefined
         ? undefined
@@ -620,6 +633,7 @@ export class AllureReport {
       throw new Error("the report is already stopped, the restart isn't supported at the moment");
     }
 
+    this.#store.updateHistoryFlags();
     this.#executionStage = "running";
     this.#endGeneratePerfSpan = startPerfSpan(PERF_METRIC_NAMES.generateTotal);
 
@@ -661,6 +675,8 @@ export class AllureReport {
     if (this.#executionStage !== "running") {
       return;
     }
+
+    this.#store.updateHistoryFlags();
 
     await this.#eachPlugin(false, async (plugin, context) => {
       await plugin.update?.(context, this.#store);
@@ -838,6 +854,7 @@ export class AllureReport {
   restoreState = async (dumps: string[]): Promise<void> => {
     this.#store.resetIngestOrder();
     await this.#restoreStateDumps(dumps.map((path) => ({ artifactPath: path, path })));
+    this.#store.updateHistoryFlags();
   };
 
   #recordArtifact = (filePath: string, name = basename(filePath)): void => {
@@ -931,12 +948,6 @@ export class AllureReport {
               const globalAttachmentsEntry = await requiredEntryData(AllureStoreDumpFiles.GlobalAttachments);
               const globalErrorsEntry = await requiredEntryData(AllureStoreDumpFiles.GlobalErrors);
               const indexAttachmentsEntry = await requiredEntryData(AllureStoreDumpFiles.IndexAttachmentsByTestResults);
-              const indexTestResultsByRetryHash =
-                (await optionalEntryData(AllureStoreDumpFiles.IndexTestResultsByRetryHash)) ??
-                (await optionalEntryData(AllureStoreDumpFiles.IndexTestResultsByHistoryId));
-              const indexTestResultsByTestCaseEntry = await requiredEntryData(
-                AllureStoreDumpFiles.IndexTestResultsByTestCase,
-              );
               const indexTestResultsByResolutionIssueEntry = await optionalEntryData(
                 AllureStoreDumpFiles.IndexTestResultsByResolutionIssue,
               );
@@ -966,7 +977,6 @@ export class AllureReport {
                   case AllureStoreDumpFiles.GlobalErrors:
                   case AllureStoreDumpFiles.IndexAttachmentsByTestResults:
                   case AllureStoreDumpFiles.IndexTestResultsByRetryHash:
-                  case AllureStoreDumpFiles.IndexTestResultsByHistoryId:
                   case AllureStoreDumpFiles.IndexTestResultsByTestCase:
                   case AllureStoreDumpFiles.IndexTestResultsByResolutionIssue:
                   case AllureStoreDumpFiles.IndexAttachmentsByFixture:
@@ -996,10 +1006,8 @@ export class AllureReport {
                 globalAttachmentIds: JSON.parse(globalAttachmentsEntry.toString("utf8")),
                 globalErrors: JSON.parse(globalErrorsEntry.toString("utf8")),
                 indexAttachmentByTestResult: JSON.parse(indexAttachmentsEntry.toString("utf8")),
-                indexTestResultByRetryHash: indexTestResultsByRetryHash
-                  ? JSON.parse(indexTestResultsByRetryHash.toString("utf8"))
-                  : {},
-                indexTestResultByTestCase: JSON.parse(indexTestResultsByTestCaseEntry.toString("utf8")),
+                indexTestResultByRetryHash: {},
+                indexTestResultByTestCase: {},
                 indexTestResultByResolutionIssue: indexTestResultsByResolutionIssueEntry
                   ? JSON.parse(indexTestResultsByResolutionIssueEntry.toString("utf8"))
                   : {},
@@ -1224,6 +1232,8 @@ export class AllureReport {
       }
       // closing it after realtime update settles, to prevent future reads
       this.#executionStage = "done";
+
+      this.#store.updateHistoryFlags();
 
       // just dump state when dump is set and generate nothing
       if (this.#dump) {

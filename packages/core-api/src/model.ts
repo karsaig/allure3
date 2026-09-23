@@ -25,6 +25,14 @@ export interface AllureCheckResult {
 export interface SourceMetadata {
   readerId: string;
   metadata: { [key: string]: any };
+  /**
+   * An explicitly supplied legacy ID used only for read-only history lookup.
+   * Preserved in same-version dumps; never used to calculate canonical identity.
+   *
+   * @deprecated Remove with the legacy history compatibility bridge introduced in
+   * https://github.com/allure-framework/allure3/pull/903.
+   */
+  legacyHistoryId?: string;
 }
 
 export interface TestError {

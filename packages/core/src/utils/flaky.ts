@@ -3,7 +3,7 @@ import type { HistoryTestResult, TestResult, TestStatus } from "@allurereport/co
 const MAX_LAST_HISTORY_SIZE = 5;
 const badStatuses: TestStatus[] = ["failed", "broken"];
 
-const isAllureClassicFlaky = (tr: TestResult, history: HistoryTestResult[]) => {
+export const isFlaky = (tr: Pick<TestResult, "status">, history: HistoryTestResult[]) => {
   if (history.length === 0 || !badStatuses.includes(tr.status)) {
     return false;
   }
@@ -16,5 +16,3 @@ const isAllureClassicFlaky = (tr: TestResult, history: HistoryTestResult[]) => {
     limitedLastHistoryStatuses.indexOf("passed") < limitedLastHistoryStatuses.lastIndexOf("failed")
   );
 };
-
-export const isFlaky = (tr: TestResult, history: HistoryTestResult[]) => tr.flaky || isAllureClassicFlaky(tr, history);
